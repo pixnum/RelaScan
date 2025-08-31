@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RelaScan — Relationship Checker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%236c8cff'/></svg>">
+<style>
+:root{--bg:#f0f4f8;--card:#ffffffdd;--text:#102027;--muted:#6b7c8c;--accent:#6c8cff;--shadow:0 8px 24px rgba(0,0,0,0.15);--radius:16px;--border:#c6d0e6;}
+[data-theme="dark"]{--bg:#0d1117;--card:#1b1f27dd;--text:#e6eef6;--muted:#9aa8b3;--accent:#6c8cff;--shadow:0 8px 24px rgba(0,0,0,0.5);--border:#102233;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Poppins',sans-serif;}
+body{background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;}
+.frame{width:100%;max-width:950px;border-radius:var(--radius);padding:24px;background:var(--card);box-shadow:var(--shadow);backdrop-filter:blur(12px);border:3px solid var(--border);}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;}
+header .logo{font-size:28px;font-weight:700;background:linear-gradient(135deg,#6c8cff,#8ea2ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+header .controls button{padding:8px 14px;border:none;border-radius:12px;cursor:pointer;background:var(--accent);color:white;font-weight:600;transition:0.2s;}
+header .controls button:hover{opacity:0.85;}
+section{margin-bottom:24px;}
+h3{margin-bottom:16px;font-weight:600;text-align:center;}
+.form-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+.form-row input,.form-row textarea{flex:1;padding:12px;border-radius:12px;border:none;background:#ffffffcc;box-shadow:inset 4px 4px 12px rgba(0,0,0,0.05), inset -4px -4px 12px rgba(255,255,255,0.5);}
+.form-row textarea{resize:none;}
+.btn-group{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+button.btn{padding:12px 20px;border-radius:12px;border:none;cursor:pointer;font-weight:600;transition:0.2s;}
+button.btn-primary{background:linear-gradient(135deg,#6c8cff,#8ea2ff);color:white;}
+button.btn-primary:hover{opacity:0.9;}
+button.btn-ghost{background:transparent;border:2px solid var(--accent);color:var(--accent);}
+button.btn-ghost:hover{background:var(--accent);color:white;}
+#quizSection{display:none;}
+.q{margin-bottom:16px;padding:8px;border-radius:12px;}
+.q.unanswered{border:2px solid red;background:#ffebeb;}
+.options{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;}
+.option{flex:1;padding:10px;border-radius:12px;cursor:pointer;text-align:center;background:#ffffffaa;transition:0.2s;box-shadow:2px 2px 8px rgba(0,0,0,0.1);}
+.option.selected{background:var(--accent);color:white;box-shadow:2px 2px 12px rgba(108,140,255,0.5);}
+.result{padding:16px;border-radius:12px;background:#ffffffbb;text-align:center;box-shadow:inset 2px 2px 8px rgba(0,0,0,0.1);}
+#timer{font-size:18px;text-align:center;margin-bottom:16px;font-weight:600;color:var(--accent);}
+footer{text-align:center;color:var(--muted);font-size:13px;margin-top:12px;}
+.muted{color:var(--muted);}
+</style>
+</head>
+<body data-theme="light">
+<div class="frame">
+  <header>
+    <div class="logo">RelaScan</div>
+    <div class="controls">
+      <button id="themeToggle">Toggle Dark</button>
+    </div>
+  </header>
+
+  <section id="profileSection">
+    <h3>Profiles</h3>
+    <div class="form-row">
+      <input type="text" id="nameA" placeholder="Person A Name">
+      <input type="text" id="nameB" placeholder="Person B Name">
+    </div>
+    <div class="form-row">
+      <textarea id="notes" rows="2" placeholder="Special notes / goals..."></textarea>
+    </div>
+    <div class="btn-group">
+      <button type="button" class="btn btn-primary" id="startBtn">Start Questionnaire</button>
+      <button type="button" class="btn btn-ghost" id="loadBtn">Load Saved</button>
+    </div>
+  </section>
+
+  <section id="quizSection">
+    <h3>Compatibility Questionnaire</h3>
+    <div id="timer">Time left: <span id="timeLeft">10:00</span></div>
+    <div class="muted" style="text-align:center;">Answer for both persons sequentially</div>
+    <div id="questionContainer" style="margin-top:16px"></div>
+    <div class="btn-group" style="margin-top:16px;">
+      <button class="btn btn-primary" id="calcBtn" disabled>Calculate Compatibility</button>
+      <button class="btn btn-primary" id="downloadBtn">Download TXT</button>
+      <button class="btn btn-primary" id="downloadPdfBtn">Download PDF</button>
+      <button class="btn btn-ghost" id="resetBtn">Reset</button>
+    </div>
+  </section>
+
+  <section id="resultCard">
+    <h3>Result</h3>
+    <div id="resultArea" class="result">No result yet — answer questions and click "Calculate Compatibility".</div>
+  </section>
+
+  <footer>© RelaScan 2025</footer>
+</div>
+
+<script>
+const QUESTIONS=[
+  {key:'values',q:'How important are family & long-term commitment to you?',opts:['Very important','Important','Somewhat important','Not important']},
+  {key:'communication',q:'How do you usually handle disagreements?',opts:['Calm discussion','Take time then discuss','Avoid confrontation','Get emotional quickly']},
+  {key:'social',q:'How social are you?',opts:['Very social','Social sometimes','Prefer small groups','Mostly prefer solitude']},
+  {key:'plans',q:'How do you prefer planning?',opts:['Plan ahead','Flexible plans','Spontaneous often','No planning']},
+  {key:'money',q:'Approach to finances?',opts:['Share & plan','Mostly separate','Mostly separate but share goals','Independent']},
+  {key:'adventure',q:'How much do you enjoy travel & new experiences?',opts:['Love it','Enjoy sometimes','Occasionally','Prefer routine']},
+  {key:'goals',q:'Importance of career/ambition?',opts:['Top priority','Important but balanced','Moderate','Low priority']},
+  {key:'lifestyle',q:'Do you prefer structured or flexible routine?',opts:['Structured','Balanced','Flexible','Unpredictable']},
+  {key:'affection',q:'How do you express affection?',opts:['Verbal','Physical','Acts of service','Quality time']},
+  {key:'hobbies',q:'How often do you share hobbies/interests?',opts:['Very often','Sometimes','Rarely','Never']},
+  {key:'trust',q:'How important is trust in a relationship?',opts:['Essential','Very important','Somewhat important','Not important']},
+  {key:'support',q:'How do you support your partner emotionally?',opts:['Always','Sometimes','Rarely','Never']},
+  {key:'conflict',q:'How do you resolve conflicts?',opts:['Talk openly','Compromise','Ignore','Argument']},
+  {key:'intimacy',q:'Level of emotional intimacy desired?',opts:['Very high','High','Moderate','Low']},
+  {key:'goalsAlignment',q:'How aligned are your life goals?',opts:['Perfectly','Mostly','Somewhat','Not at all']},
+  {key:'humor',q:'Sense of humor compatibility?',opts:['Very compatible','Somewhat compatible','Rarely compatible','Not compatible']},
+  {key:'empathy',q:'Ability to understand each other\'s feelings?',opts:['High','Moderate','Low','None']},
+  {key:'adventureTogether',q:'Interest in shared adventures?',opts:['High','Moderate','Low','None']},
+  {key:'stress',q:'Handling stress in relationship?',opts:['Supportive','Sometimes supportive','Rarely supportive','Unsupportive']},
+  {key:'decision',q:'Decision-making style?',opts:['Joint decisions','Mostly independent','Sometimes consult','Rarely consult']},
+  {key:'family',q:'Interaction with each other\'s family?',opts:['Very comfortable','Comfortable','Neutral','Uncomfortable']},
+  {key:'intimacyFrequency',q:'Preferred frequency of intimacy?',opts:['Very frequent','Frequent','Occasional','Rare']},
+  {key:'financeGoals',q:'Alignment of financial goals?',opts:['Perfectly aligned','Mostly aligned','Somewhat aligned','Not aligned']},
+  {key:'personalSpace',q:'Need for personal space?',opts:['Minimal','Moderate','High','Very high']},
+  {key:'celebrations',q:'Importance of celebrating special occasions?',opts:['Very important','Important','Somewhat','Not important']}
+];
+
+let state={A:{},B:{}},currentPerson='A',timerInterval,timeLeft=600;
+
+const timerEl=document.getElementById('timeLeft');
+const questionContainer=document.getElementById('questionContainer');
+const calcBtn=document.getElementById('calcBtn');
+const resultArea=document.getElementById('resultArea');
+
+function updateTimerDisplay(){
+  const m=Math.floor(timeLeft/60).toString().padStart(2,'0');
+  const s=(timeLeft%60).toString().padStart(2,'0');
+  timerEl.textContent=`${m}:${s}`;
+}
+
+function startTimer(){
+  clearInterval(timerInterval);
+  updateTimerDisplay();
+  timerInterval=setInterval(()=>{
+    timeLeft--;
+    updateTimerDisplay();
+    if(timeLeft<=0){clearInterval(timerInterval);alert(`Time is up for Person ${currentPerson}!`);}
+  },1000);
+}
+
+function buildQuestions(){
+  questionContainer.innerHTML='';
+  QUESTIONS.forEach((q,qi)=>{
+    const qDiv=document.createElement('div');qDiv.className='q';
+    const label=document.createElement('label');label.textContent=(qi+1)+'. '+q.q;qDiv.appendChild(label);
+
+    const optsWrap=document.createElement('div');optsWrap.className='options';
+    const block=document.createElement('div');block.style.flex='1';block.style.display='block';
+    const personLabel=document.createElement('div');personLabel.className='muted';personLabel.textContent=`Person ${currentPerson}`;
+    block.appendChild(personLabel);
+
+    q.opts.forEach((opt,idx)=>{
+      const o=document.createElement('div');o.className='option';o.textContent=opt;
+      if(state[currentPerson][q.key]===idx)o.classList.add('selected');
+
+      o.addEventListener('click',()=>{
+        [...block.querySelectorAll('.option')].forEach(n=>n.classList.remove('selected'));
+        o.classList.add('selected');
+        state[currentPerson][q.key]=idx;
+        saveProgress();
+        buildQuestions(); // refresh highlights
+        if(Object.keys(state[currentPerson]).length===QUESTIONS.length){
+          switchPerson();
+        }
+      });
+
+      block.appendChild(o);
+    });
+
+    optsWrap.appendChild(block);qDiv.appendChild(optsWrap);
+
+    // Highlight unanswered
+    if(state[currentPerson][q.key]===undefined){qDiv.classList.add('unanswered');}
+
+    questionContainer.appendChild(qDiv);
+  });
+}
+
+function switchPerson(){
+  if(currentPerson==='A'){
+    currentPerson='B';timeLeft=600;startTimer();buildQuestions();
+    alert("Person A finished! Now Person B's turn.");
+  } else {
+    clearInterval(timerInterval);
+    calcBtn.disabled=false;
+  }
+}
+
+function saveProgress(){
+  const data={state,currentPerson,
+              nameA:document.getElementById('nameA').value,
+              nameB:document.getElementById('nameB').value,
+              notes:document.getElementById('notes').value};
+  localStorage.setItem('relaScanData',JSON.stringify(data));
+}
+
+function loadProgress(){
+  const data=JSON.parse(localStorage.getItem('relaScanData'));
+  if(data){
+    state=data.state;currentPerson=data.currentPerson;
+    document.getElementById('nameA').value=data.nameA||'';
+    document.getElementById('nameB').value=data.nameB||'';
+    document.getElementById('notes').value=data.notes||'';
+    document.getElementById('profileSection').style.display='none';
+    document.getElementById('quizSection').style.display='block';
+    buildQuestions();startTimer();
+    if(Object.keys(state.A).length===QUESTIONS.length && Object.keys(state.B).length===QUESTIONS.length) calcBtn.disabled=false;
+  }
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  if(!document.getElementById('nameA').value.trim() || !document.getElementById('nameB').value.trim()){alert('Enter both names');return;}
+  document.getElementById('profileSection').style.display='none';
+  document.getElementById('quizSection').style.display='block';
+  state={A:{},B:{}};currentPerson='A';calcBtn.disabled=true;timeLeft=600;buildQuestions();startTimer();
+  saveProgress();
+});
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  state={A:{},B:{}};currentPerson='A';calcBtn.disabled=true;timeLeft=600;buildQuestions();updateTimerDisplay();
+  resultArea.textContent='No result yet — answer questions and click "Calculate Compatibility".';
+  localStorage.removeItem('relaScanData');
+});
+
+document.getElementById('calcBtn').addEventListener('click',()=>{
+  const allAnswered=QUESTIONS.every(q=>state.A[q.key]!==undefined && state.B[q.key]!==undefined);
+  if(!allAnswered){alert('Both Person A and Person B must answer all questions.');return;}
+  let score=0;QUESTIONS.forEach(q=>score+=3-Math.abs(state.A[q.key]-state.B[q.key]));
+  const percent=Math.round((score/(QUESTIONS.length*3))*100);
+  resultArea.textContent=`Compatibility: ${percent}%`;
+  clearInterval(timerInterval);
+});
+
+document.getElementById('themeToggle').addEventListener('click',()=>{document.body.dataset.theme=document.body.dataset.theme==='light'?'dark':'light';});
+
+document.getElementById('downloadBtn').addEventListener('click',()=>{
+  if(resultArea.textContent.includes('No result')){alert('Calculate first');return;}
+  const nameA=document.getElementById('nameA').value.trim();
+  const nameB=document.getElementById('nameB').value.trim();
+  const notes=document.getElementById('notes').value.trim();
+  let content=`RelaScan Compatibility Result\n\nPerson A: ${nameA}\nPerson B: ${nameB}\nNotes: ${notes}\n\n${resultArea.textContent}\n\nAnswers:\n\n`;
+  QUESTIONS.forEach(q=>{content+=`${q.q}\n  Person A: ${q.opts[state.A[q.key]]}\n  Person B: ${q.opts[state.B[q.key]]}\n\n`;});
+  const blob=new Blob([content],{type:'text/plain'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`RelaScan_${nameA}_and_${nameB}.txt`;a.click();URL.revokeObjectURL(url);
+});
+
+document.getElementById('downloadPdfBtn').addEventListener('click',()=>{
+  if(resultArea.textContent.includes('No result')){alert('Calculate first');return;}
+  const nameA=document.getElementById('nameA').value.trim();
+  const nameB=document.getElementById('nameB').value.trim();
+  const notes=document.getElementById('notes').value.trim();
+  let htmlContent=`<h2>RelaScan Compatibility Result</h2>
+  <p><strong>Person A:</strong> ${nameA}<br><strong>Person B:</strong> ${nameB}<br><strong>Notes:</strong> ${notes}</p>
+  <h3>${resultArea.textContent}</h3><ul>`;
+  QUESTIONS.forEach(q=>{htmlContent+=`<li><strong>${q.q}</strong><br>Person A: ${q.opts[state.A[q.key]]}<br>Person B: ${q.opts[state.B[q.key]]}</li>`;});
+  htmlContent+='</ul>';
+  const printWindow=window.open('','', 'width=800,height=600');printWindow.document.write(`<html><head><title>RelaScan Result</title></head><body>${htmlContent}</body></html>`);printWindow.document.close();printWindow.focus();printWindow.print();
+});
+
+document.getElementById('loadBtn').addEventListener('click',()=>{loadProgress();});
+window.addEventListener('beforeunload',()=>{saveProgress();});
+</script>
+</body>
+</html>
